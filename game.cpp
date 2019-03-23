@@ -404,108 +404,7 @@ int max2(int x, int y) {
 }
 
 
-class player_t : public ent_t, public health_t, public move {
-public:
-    player_t();
-    void print();
-    void setPid(int usrPid) {pid = usrPid;}
-    void setPname(string usrPname) {name = usrPname;}
-    int getPid() const {return pid;}
-    string getPname() const {return name;}
-    void moveUp();
-    void moveDown();
-    void moveRight();
-    void moveLeft();
-    void storeLocation();
-    void printLocation();
-    void printStatus() {printw("%i status: %i\n", pid, playerStatus[pid]);}
-public:
-    weapon_t wep;
-    static bool playerStatus[PLAYERCNT];        // 1d array to store player if player is dead or alive
-private:
-    static string playerLocation[PLAYERCNT][2]; // array common to all players to store location
-    string name;
-    int pid;
-    static int pCnt;
-};
 
-int player_t::pCnt = 0;
-
-string player_t::playerLocation[PLAYERCNT][2] = {{""}};     //initialize 2d array to 0s
-bool player_t::playerStatus[PLAYERCNT] = {ALIVE, ALIVE, ALIVE, ALIVE, ALIVE, ALIVE, ALIVE, ALIVE, ALIVE, ALIVE, ALIVE, ALIVE, ALIVE, ALIVE, ALIVE, ALIVE, ALIVE, ALIVE, ALIVE, ALIVE, ALIVE, ALIVE, ALIVE, ALIVE, ALIVE};           //initialize all players to be alive
-
-// defualt constructor setting pid and name
-player_t::player_t() {
-    pid = pCnt++;
-    string spid = to_string(pid);   // pid as string
-    name = "Player " + spid;
-}
-
-/*
- * function_identifier: stores player info into 2d array common to all players
- * parameters: none
- * return value: none
- */
-void player_t::storeLocation() {
-    playerLocation[pid][0] = pid+INT_TO_UPPER_ALPH;                         // storing the character
-    playerLocation[pid][1] = to_string(pos.x) + "," + to_string(pos.y);    // storing coords
-}
-
-void player_t::printLocation() {
-    printw("%s | %s\n", (playerLocation[pid][0]).c_str(), (playerLocation[pid][1]).c_str());
-}
-
-/*
- * function_identifier: sets player's old position to current pos
- *                      and updated current position as long as it's within boundaries
- * parameters: none
- * return value: none
- */
-void player_t::moveUp() {
-    pos.setOldx(pos.x);         // copies current position to old so that updatePos() can make it blank
-    pos.setOldy(pos.y);
-    if (pos.y >= 1) pos.y -= 1; // checks that player doesn't leave boundaries
-}
-
-void player_t::moveDown() {
-    pos.setOldx(pos.x);
-    pos.setOldy(pos.y);
-    if (pos.y < 13) pos.y += 1;
-}
-
-void player_t::moveRight() {
-    pos.setOldx(pos.x);
-    pos.setOldy(pos.y);
-    if (pos.x < 49) pos.x += 1;
-}
-
-void player_t::moveLeft() {
-    pos.setOldx(pos.x);
-    pos.setOldy(pos.y);
-    if (pos.x >= 1) pos.x -= 1;
-}
-
-/*
- * function_identifier: updates + formats player id and name in case it was
- *                      changed by a setter and prints player info
- * parameters: none
- * return value: none
- */
-void player_t::print() {
-    string spid = to_string(pid);   // in case pid changes after obj is created
-    name = "Player " + spid;        // reflect changes to name
-#ifdef curses
-    printw("%s\n", name.c_str());
-    entprint();
-    printw("Player position: ");
-    pos.print();
-#else
-    cout << name << endl;           // prints player name + id
-    entprint();                     // prints metadata
-    cout << "Player position: "; pos.print(); // prints position
-#endif
-    
-}
 
 /*
  * class_identifier: creates map and adds entities to it
@@ -536,15 +435,15 @@ public:
     void update();          // updates the map with storm
     void calcRadius();      // calculates and returns radius
     int radius;
-    
+       
     int dXR;    // x dist to the right of center
     int dXL;    // x dist to the left of center
     int dYU;    // y dist up of center
     int dYB;    // y dist down of center
     coord_t centerCoord;
-    void updateStatus(player_t p);       // updates if player is dead or alive
-private:
+    // void updateStatus(player_t p);       // updates if player is dead or alive
     char **grid;
+private:
     int rows;
     int cols;
 };
@@ -554,20 +453,20 @@ private:
 map_t::map_t(int urows, int ucols) {
     this->rows = urows;
     this->cols = ucols;
-    
+
     // creating 2d pointer array
     grid = new char*[this->rows];  // creates array of pointers
     for (int i = 0; i < rows; i++) {
         grid[i] = new char[this->cols];
     }
-    
+
     centerCoord.randomize();       // creates a random center
-    printw("Center: "); centerCoord.print();
-    
+
     dXR = GRIDX - centerCoord.x;
     dXL = centerCoord.x;
     dYU = centerCoord.y;
     dYB = GRIDY - centerCoord.y - 1;
+
     calcRadius();
     initGrid();
     grid[centerCoord.y][centerCoord.x] = '!';
@@ -589,12 +488,6 @@ void map_t::addObstacle(coord_t& c) {
 
 void map_t::addTrigger(coord_t& c, char chr) {
     grid[c.y][c.x] = chr;
-}
-
-void map_t::updateStatus(player_t p) {
-    if(grid[p.pos.y][p.pos.x] == 's') {
-        p.playerStatus[p.getPid()] = DEAD;
-    }
 }
 
 /*
@@ -690,13 +583,123 @@ void map_t::updatePosition(ent_t myEnt) {
 void map_t::clearScreen() const {
 #ifdef curses
     clear();
-    printw("Victor's Battle Royale!\n");
 #else
     for (int i = 0; i < rows + 1; i++){
         cout << "\33[2K\033[A\r";
     }
     cout << flush;
 #endif
+}
+
+
+class player_t : public ent_t, public health_t, public move {
+public:
+    player_t();
+    void print();
+    void setPid(int usrPid) {pid = usrPid;}
+    void setPname(string usrPname) {name = usrPname;}
+    int getPid() const {return pid;}
+    string getPname() const {return name;}
+    void moveUp();
+    void moveDown();
+    void moveRight();
+    void moveLeft();
+    void storeLocation(map_t);
+    void updateStatus(map_t);
+    void printStatus() {printw("%i status: %i\n", pid, playerStatus[pid]);}
+    void printLocation() const;
+public:
+    weapon_t wep;
+    static bool playerStatus[PLAYERCNT];        // 1d array to store player if player is dead or alive
+    static int playerLocation[PLAYERCNT][5]; // array common to all players to store location
+    // id, x, y, distXfromCenter, distYfromCenter
+private:
+    string name;
+    int pid;
+    static int pCnt;
+};
+
+int player_t::pCnt = 0;
+
+int player_t::playerLocation[PLAYERCNT][5] = {{0}};     //initialize 2d array to 0s
+bool player_t::playerStatus[PLAYERCNT] = {ALIVE, ALIVE, ALIVE, ALIVE, ALIVE, ALIVE, ALIVE, ALIVE, ALIVE, ALIVE, ALIVE, ALIVE, ALIVE, ALIVE, ALIVE, ALIVE, ALIVE, ALIVE, ALIVE, ALIVE, ALIVE, ALIVE, ALIVE, ALIVE, ALIVE};           //initialize all players to be alive
+
+// defualt constructor setting pid and name
+player_t::player_t() {
+    pid = pCnt++;
+    string spid = to_string(pid);   // pid as string
+    name = "Player " + spid;
+}
+
+void player_t::updateStatus(map_t m) {
+    if (m.grid[pos.y][pos.x] == 's') 
+        this->playerStatus[this->pid] = DEAD;
+}
+
+
+/*
+ * function_identifier: stores player info into 2d array common to all players
+ * parameters: none
+ * return value: none
+ */
+void player_t::storeLocation(map_t m) {
+    playerLocation[pid][0] = pid;           // storing the character
+    playerLocation[pid][1] = pos.x;         // storing x   
+    playerLocation[pid][2] = pos.y;         // storing y     
+    playerLocation[pid][3] = abs(m.centerCoord.x - pos.x);
+    playerLocation[pid][4] = abs(m.centerCoord.y - pos.y);        
+}
+
+/*
+ * function_identifier: sets player's old position to current pos
+ *                      and updated current position as long as it's within boundaries
+ * parameters: none
+ * return value: none
+ */
+void player_t::moveUp() {
+    pos.setOldx(pos.x);         // copies current position to old so that updatePos() can make it blank
+    pos.setOldy(pos.y);
+    if (pos.y >= 1) pos.y -= 1; // checks that player doesn't leave boundaries
+}
+
+void player_t::moveDown() {
+    pos.setOldx(pos.x);
+    pos.setOldy(pos.y);
+    if (pos.y < 13) pos.y += 1;
+}
+
+void player_t::moveRight() {
+    pos.setOldx(pos.x);
+    pos.setOldy(pos.y);
+    if (pos.x < 49) pos.x += 1;
+}
+
+void player_t::moveLeft() {
+    pos.setOldx(pos.x);
+    pos.setOldy(pos.y);
+    if (pos.x >= 1) pos.x -= 1;
+}
+
+/*
+ * function_identifier: updates + formats player id and name in case it was
+ *                      changed by a setter and prints player info
+ * parameters: none
+ * return value: none
+ */
+void player_t::print() {
+    string spid = to_string(pid);   // in case pid changes after obj is created
+    name = "Player " + spid;        // reflect changes to name
+#ifdef curses
+    printw("%s\n", name.c_str());
+    entprint();
+    printw("Player position: ");
+    pos.print();
+#else
+    cout << name << endl;           // prints player name + id
+    entprint();                     // prints metadata
+    cout << "Player position: "; pos.print(); // prints position
+#endif
+    
 }
 
 /*
@@ -752,7 +755,6 @@ void initCurses() {
     keypad(stdscr, TRUE); // accepts arrow keys
     noecho();
     raw(); //prevents exiting with commands
-    printw("Victor's Battle Royale!\n");
 #endif
 }
 
@@ -768,7 +770,23 @@ bool winRnd(player_t p, trigger_t t) {
     else return false;
 }
 
+int numAlive(player_t *p) {
+    int alive = 0;
+    for (int i = 0; i < PLAYERCNT; i++) {
+        if (p[i].playerStatus[i] == ALIVE)
+            alive++;
+    }
+    return alive;
+}
 
+// char winningChar() {
+//     char winner;
+//     // if the distance from the center of all the players alive is the same,
+//     // pick a random one to be the winner 
+//     // if ()
+
+//     // return winner;
+// }
 
 /*
  * function_identifier: "client code" where objects are created and added to the game
@@ -780,62 +798,67 @@ bool winRnd(player_t p, trigger_t t) {
 int main(int argc, char* argv[]) {
     initCurses();
     int round = 0;
-    
+
     if (argc != 3) {
         printw("ERROR: You must enter 2 arguments");
         endCurses();
         return -1;
     }
-    
+
     GRIDX = atoi(argv[1]);
     GRIDY = atoi(argv[2]);
-    srand(time(NULL)); // creates random seed rand() function
-    
-    map_t map(GRIDY, GRIDX);        // map automatically generates a random center within its constructor
-    
-    printw("Number of rows: %i\n", map.getRows());
-    printw("Number of cols: %i\n", map.getCols());
-    
-    // create objects
+    srand(time(NULL));           // creates random seed rand() function
+
+    map_t map(GRIDY, GRIDX);     // generating map and random center coord
     player_t p[PLAYERCNT];                 // 25 player objects
+
     for (int i = 0; i < PLAYERCNT; i++) {
         p[i].pos.randomize();              // sets player to random position
         map.addPlayer(p[i].pos, i);        // adds player to map
-        p[i].storeLocation();
-        //         map.updateStatus(p[i]);
-        // p[i].printStatus();
+        p[i].storeLocation(map);
     }
+
+    for (int i = 0; i < PLAYERCNT; i++) {
+        for (int j = 0; j < 5; j++) {
+            printw("%i ", p[0].playerLocation[i][j]);
+        }
+        printw("\n");
+    }
+
     char input = ' ';
-    printw("radius: %i\n", map.radius);
-    map.print();                    // prints initial map
+    printw("Center: (%i, %i)\n", map.centerCoord.x, map.centerCoord.y);
+    printw("Victor's Battle Royale!\n");
+    map.print();
     
     while (input != 'q') {
         input = getch();
-        if (input == '\n') {
+        if (input == '\n' ) {
             map.update();
-            printw("\n");
             map.clearScreen();
-            for (int i = 0; i < PLAYERCNT; i++) {
-                map.updateStatus(p[i]);
-                p[i].printStatus();
-            }
-            
-            
-            
+            for (int i = 0; i < PLAYERCNT; i++)
+                p[i].updateStatus(map);
+            printw("Number alive: %i", numAlive(p));
+            printw("Center: (%i, %i)\n", map.centerCoord.x, map.centerCoord.y);
+            printw("Victor's Battle Royale!\n");
             map.print();
+            printw("Round %i Complete. Press Enter to Continue\n", (round+1));
+            round++;
         } else {
-            printw("Error! Only Press Enter.");
+            printw("Error! Only Press Enter.\n");
         }
-        round++;
+        // if (numAlive(p) <= 1 ) {
+        //     printw("Player '%c'");
+        // }
+        
     }
     
     // ----------- DEMO of functions in other classes ---------------
     // show that print location works
-    
+
     // for (int i = 0; i< PLAYERCNT; i++) {
     //     p[i].printLocation();
     // }
-    
+
     endCurses();
     return 0;
 }
