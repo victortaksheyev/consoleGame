@@ -238,248 +238,6 @@ private:
 };
 
 /*
- * function_identifier: print obstacle information
- * parameters: none
- * return value: none
- */
-void obstacle_t::printObstacle() const {
-#ifdef curses
-    printw("Obstacle id: %s", id.c_str());
-#else
-    cout << "Obstacle Id: " << id << endl;
-#endif
-    entprint();
-    pos.print();
-}
-
-class trigger_t : public ent_t {
-public:
-    trigger_t();
-    trigger_t(string, char);
-    string whatIDo() const {return info;}
-    void setWhatIDo(string usrin) {info = usrin;} // info setter
-    char getId() const {return id;}
-    void setId(char usrid) {id = usrid;}          // id setter
-private:
-    string info;
-    char id;
-};
-
-// default constructor, initializing info and id
-trigger_t::trigger_t() {
-    info = "";
-    id = '?';
-}
-
-// constructor, initializing info and id to usr vars
-trigger_t::trigger_t(string usrInfo, char usrid) {
-    info = usrInfo;
-    id = usrid;
-}
-
-int max(int x, int y, int z, int k) {
-    int largest = x;
-    if (y > largest) largest = y;
-    if (z > largest) largest = z;
-    if (k > largest) largest = k;
-    return largest;
-}
-int max2(int x, int y) {
-    int largest = x;
-    if (y > largest) largest = y;
-    return largest;
-}
-
-/*
- * class_identifier: creates map and adds entities to it
- * constructors: map_t()
- * public functions:    void initGrid()
- *                      void print() const
- *                      void clearScreen() const
- *                      void addObstacle(coord_t&)
- *                      void addPlayer(coord_t&, int)
- *                      void addTrigger(coord_t& c, char ch)
- *                      void updatePosition(ent_t)
- * static members: none
- */
-
-class map_t {
-public:
-    map_t(int urows = 50, int ucols = 14);
-    void initGrid();  // iniitialize grid to blanks
-    void print() const;
-    void clearScreen() const;
-    void addObstacle(coord_t&);
-    void addPlayer(coord_t&, int);
-    void addTrigger(coord_t& c, char ch);
-    void updatePosition(ent_t);
-    // for testing purposes
-    int getRows() const {return rows;}
-    int getCols() const {return cols;}
-    void update();  // updates the map with storm
-    void calcRadius();    // calculates and returns radius
-    int radius;
-       
-        int dXR;    // x dist to the right of center
-    int dXL;    // x dist to the left of center
-    int dYU;    // y dist up of center
-    int dYB;    // y dist down of center
-    coord_t centerCoord;
-private:
-    
-    char **grid;
-    int rows;
-    int cols;
-
-    
-};
-
-// defualt paramater, intiializing the grid
-// othe
-map_t::map_t(int urows, int ucols) {
-    this->rows = urows;
-    this->cols = ucols;
-
-    // creating 2d pointer array
-    grid = new char*[this->rows];  // creates array of pointers
-    for (int i = 0; i < rows; i++) {
-        grid[i] = new char[this->cols];
-    }
-
-    centerCoord.randomize();       // creates a random center
-    printw("Center: "); centerCoord.print();
-
-    dXR = GRIDX - centerCoord.x;
-    dXL = centerCoord.x;
-    dYU = centerCoord.y;
-    dYB = GRIDY - centerCoord.y - 1;
-    calcRadius();
-    initGrid();
-    grid[centerCoord.y][centerCoord.x] = '!';
-}
-
-void map_t::calcRadius() {
-    this->radius = max(dXR, dXL, dYU, dYB);
-    // this -> radius = max2(dYU, dYB);
-}
-
-//  adds player to coordinates passed into function
-void map_t::addPlayer(coord_t& c, int pid) {
-    grid[c.y][c.x] = (char)(pid+INT_TO_UPPER_ALPH);     // casting into a character
-}
-
-void map_t::addObstacle(coord_t& c) {
-    grid[c.y][c.x] = '@';
-}
-
-void map_t::addTrigger(coord_t& c, char chr) {
-    grid[c.y][c.x] = chr;
-}
-
-/*
- * function_identifier: initialize grid to blanks
- * parameters: none
- * return value: none
- */
-void map_t::initGrid() {
-    for (int i = 0; i < this->rows; i++) {
-        for (int j = 0; j < this->cols; j++) {
-            grid[i][j] = ' ';
-        }
-    }
-}
-
-void map_t::update() {
-    if(dXR == this->radius) {
-        for (int i = 0; i < this->rows; i++) {
-            grid[i][centerCoord.x + dXR] = 's';
-        }
-        // printw("REMOVE RIGHT");
-        // printw("remove right: %i", centerCoord.x + dXR);
-        dXR -= 1;
-    }
-    if (dXL == this->radius) {
-        for (int i = 0; i < this->rows; i++) {
-            grid[i][centerCoord.x - dXL] = 's';
-        }
-        // printw("remove left: %i", centerCoord.x - dXL);
-        // printw("REMOVE LEFT");
-        dXL -= 1;
-    }
-    if (dYU == this->radius) {
-        for (int i = 0; i < this->cols; i++) {
-            grid[centerCoord.y - dYU][i] = 's';
-        }
-        // printw("remove up: %i", centerCoord.y - dYU);
-        // printw("REMOVE UP");
-        // printw("center y: %i | distance y: %dYU\n");
-        dYU -= 1;
-    }
-    if (dYB == this->radius) {
-        for (int i = 0; i < this->cols; i++) {
-            grid[centerCoord.y + dYB][i] = 's';
-        }
-        // printw("remove down: %i", centerCoord.y + dYB);
-        // printw("REMOVE DOWN");
-        dYB -= 1;
-    }
-    // printw("changes");
-    this->radius -=1;
-}
-
-/*
- * function_identifier: print map for both ncurses and not ncurses
- * parameters: none
- * return value: none
- */
-void map_t::print() const {
-    for (int i = 0; i < this->rows; i++) {
-        for (int j = 0; j < this->cols; j++) {
-#ifdef curses
-            printw("%c", grid[i][j]);
-#else
-            cout << grid[i][j];
-#endif
-        }
-#ifdef curses
-        printw("\n");
-#else
-        cout << endl;
-#endif
-    }
-}
-
-/*
- * function_identifier: update position of entity by setting old position to ' ', and the new position to 'A'
- * parameters: none
- * return value: none
- */
-void map_t::updatePosition(ent_t myEnt) {
-    grid[myEnt.pos.getOldy()][myEnt.pos.getOldx()] = ' ';
-    grid[myEnt.pos.y][myEnt.pos.x] = 'A'; // supposing only entity whose position can be updated is the player until part II
-    myEnt.pos.setOldx(myEnt.pos.x);
-    myEnt.pos.setOldy(myEnt.pos.y);
-}
-
-/*
- * function_identifier: erases printed array for both ncurses and not
- * parameters: none
- * return value: none
- */
-void map_t::clearScreen() const {
-#ifdef curses
-    clear();
-    printw("Victor's Battle Royale!\n");
-#else
-    for (int i = 0; i < rows + 1; i++){
-        cout << "\33[2K\033[A\r";
-    }
-    cout << flush;
-#endif
-}
-
-
-/*
  * class_identifier: creates, sets, and gets variables used by weapon
  * constructors:    weapon_t()
  *                  weapon_t(int, int, int, int, string)
@@ -546,6 +304,106 @@ weapon_t::weapon_t(int usrCap, int usrMA, int usrA, int usrDMG, string usrModel)
     model = usrModel;
 }
 
+
+/*
+ * function_identifier: calcs ammo needed to reload, performs reload if enough by adding/subtracting
+ *                      from necessary vars. Decrements reloading 5 times to simulate time
+ * parameters: none
+ * return value: none
+ */
+void weapon_t::reload() {
+    int needed = magcap - magammo;  // amount of ammo needed from total ammo
+    if ((ammo - needed) >= 0) {     // ensuring there's enough ammo
+        reloading = 5;
+        ammo -= needed;             // subtract from total
+        magammo += needed;          // add to gun ammo
+        for (int j = reloading; j > 0; j--) {   // loops 5 times, calling reloadclick() which decrements relaod
+#ifdef curses
+            printw("%i", reloading);            // printing info to show function works, will remove later
+#else
+            cout << reloading;
+#endif
+            reloadClick();
+        }
+    }
+    // in Part II of assingment
+}
+
+// checks if weapon is reloading by tapping into reloading member var
+bool weapon_t::isReloading() const {
+    if (reloading > 0) return true;
+    else return false;
+}
+
+/*
+ * function_identifier: prints out weapon info in both curses and non-curses mode
+ * parameters: map obj, player obj, direction (which key is pressed)
+ * return value: none
+ */
+void weapon_t::print() const {
+#ifdef curses
+    printw("\nWeapon Information: \nmodel: %s\nmagcap: %i\nmagammo: %i\nreloading: %i\nammo: %i\ndmg: %i\n", model.c_str(), magcap, magammo, reloading, ammo, dmg);
+#else
+    cout << "Weapon Information: " << endl << "model: " << model << endl <<
+    "magcap: " << magcap << endl << "magammo: " << magammo << endl <<
+    "reloading: " << reloading << endl << "ammo: " << ammo << endl << "dmg: " << dmg << endl;
+#endif
+}
+
+/*
+ * function_identifier: print obstacle information
+ * parameters: none
+ * return value: none
+ */
+void obstacle_t::printObstacle() const {
+#ifdef curses
+    printw("Obstacle id: %s", id.c_str());
+#else
+    cout << "Obstacle Id: " << id << endl;
+#endif
+    entprint();
+    pos.print();
+}
+
+class trigger_t : public ent_t {
+public:
+    trigger_t();
+    trigger_t(string, char);
+    string whatIDo() const {return info;}
+    void setWhatIDo(string usrin) {info = usrin;} // info setter
+    char getId() const {return id;}
+    void setId(char usrid) {id = usrid;}          // id setter
+private:
+    string info;
+    char id;
+};
+
+// default constructor, initializing info and id
+trigger_t::trigger_t() {
+    info = "";
+    id = '?';
+}
+
+// constructor, initializing info and id to usr vars
+trigger_t::trigger_t(string usrInfo, char usrid) {
+    info = usrInfo;
+    id = usrid;
+}
+
+int max(int x, int y, int z, int k) {
+    int largest = x;
+    if (y > largest) largest = y;
+    if (z > largest) largest = z;
+    if (k > largest) largest = k;
+    return largest;
+}
+int max2(int x, int y) {
+    int largest = x;
+    if (y > largest) largest = y;
+    return largest;
+}
+
+
 class player_t : public ent_t, public health_t, public move {
 public:
     player_t();
@@ -560,11 +418,12 @@ public:
     void moveLeft();
     void storeLocation();
     void printLocation();
+    void printStatus() {printw("%i status: %i\n", pid, playerStatus[pid]);}
 public:
     weapon_t wep;
+    static bool playerStatus[PLAYERCNT];        // 1d array to store player if player is dead or alive
 private:
     static string playerLocation[PLAYERCNT][2]; // array common to all players to store location
-    static bool playerStatus[PLAYERCNT];        // 1d array to store player if player is dead or alive
     string name;
     int pid;
     static int pCnt;
@@ -573,7 +432,7 @@ private:
 int player_t::pCnt = 0;
 
 string player_t::playerLocation[PLAYERCNT][2] = {{""}};     //initialize 2d array to 0s
-bool player_t::playerStatus[PLAYERCNT] = {ALIVE};           //initialize all players to be alive
+bool player_t::playerStatus[PLAYERCNT] = {ALIVE, ALIVE, ALIVE, ALIVE, ALIVE, ALIVE, ALIVE, ALIVE, ALIVE, ALIVE, ALIVE, ALIVE, ALIVE, ALIVE, ALIVE, ALIVE, ALIVE, ALIVE, ALIVE, ALIVE, ALIVE, ALIVE, ALIVE, ALIVE, ALIVE};           //initialize all players to be alive
 
 // defualt constructor setting pid and name
 player_t::player_t() {
@@ -589,7 +448,7 @@ player_t::player_t() {
  */
 void player_t::storeLocation() {
     playerLocation[pid][0] = pid+INT_TO_UPPER_ALPH;                         // storing the character
-    playerLocation[pid][1] = to_string(pos.x) + "," + to_string(pos.y);    // storing coords                   
+    playerLocation[pid][1] = to_string(pos.x) + "," + to_string(pos.y);    // storing coords
 }
 
 void player_t::printLocation() {
@@ -649,47 +508,194 @@ void player_t::print() {
 }
 
 /*
- * function_identifier: calcs ammo needed to reload, performs reload if enough by adding/subtracting
- *                      from necessary vars. Decrements reloading 5 times to simulate time
- * parameters: none
- * return value: none
+ * class_identifier: creates map and adds entities to it
+ * constructors: map_t()
+ * public functions:    void initGrid()
+ *                      void print() const
+ *                      void clearScreen() const
+ *                      void addObstacle(coord_t&)
+ *                      void addPlayer(coord_t&, int)
+ *                      void addTrigger(coord_t& c, char ch)
+ *                      void updatePosition(ent_t)
+ * static members: none
  */
-void weapon_t::reload() {
-    int needed = magcap - magammo;  // amount of ammo needed from total ammo
-    if ((ammo - needed) >= 0) {     // ensuring there's enough ammo
-        reloading = 5;
-        ammo -= needed;             // subtract from total
-        magammo += needed;          // add to gun ammo
-        for (int j = reloading; j > 0; j--) {   // loops 5 times, calling reloadclick() which decrements relaod
-#ifdef curses
-            printw("%i", reloading);            // printing info to show function works, will remove later
-#else
-            cout << reloading;
-#endif
-            reloadClick();
-        }
+
+class map_t {
+public:
+    map_t(int urows = 50, int ucols = 14);
+    void initGrid();  // iniitialize grid to blanks
+    void print() const;
+    void clearScreen() const;
+    void addObstacle(coord_t&);
+    void addPlayer(coord_t&, int);
+    void addTrigger(coord_t& c, char ch);
+    void updatePosition(ent_t);
+    // for testing purposes
+    int getRows() const {return rows;}
+    int getCols() const {return cols;}
+    void update();          // updates the map with storm
+    void calcRadius();      // calculates and returns radius
+    int radius;
+    
+    int dXR;    // x dist to the right of center
+    int dXL;    // x dist to the left of center
+    int dYU;    // y dist up of center
+    int dYB;    // y dist down of center
+    coord_t centerCoord;
+    void updateStatus(player_t p);       // updates if player is dead or alive
+private:
+    char **grid;
+    int rows;
+    int cols;
+};
+
+// defualt paramater, intiializing the grid
+// othe
+map_t::map_t(int urows, int ucols) {
+    this->rows = urows;
+    this->cols = ucols;
+    
+    // creating 2d pointer array
+    grid = new char*[this->rows];  // creates array of pointers
+    for (int i = 0; i < rows; i++) {
+        grid[i] = new char[this->cols];
     }
-    // in Part II of assingment
+    
+    centerCoord.randomize();       // creates a random center
+    printw("Center: "); centerCoord.print();
+    
+    dXR = GRIDX - centerCoord.x;
+    dXL = centerCoord.x;
+    dYU = centerCoord.y;
+    dYB = GRIDY - centerCoord.y - 1;
+    calcRadius();
+    initGrid();
+    grid[centerCoord.y][centerCoord.x] = '!';
 }
 
-// checks if weapon is reloading by tapping into reloading member var
-bool weapon_t::isReloading() const {
-    if (reloading > 0) return true;
-    else return false;
+void map_t::calcRadius() {
+    this->radius = max(dXR, dXL, dYU, dYB);
+    // this -> radius = max2(dYU, dYB);
+}
+
+//  adds player to coordinates passed into function
+void map_t::addPlayer(coord_t& c, int pid) {
+    grid[c.y][c.x] = (char)(pid+INT_TO_UPPER_ALPH);     // casting into a character
+}
+
+void map_t::addObstacle(coord_t& c) {
+    grid[c.y][c.x] = '@';
+}
+
+void map_t::addTrigger(coord_t& c, char chr) {
+    grid[c.y][c.x] = chr;
+}
+
+void map_t::updateStatus(player_t p) {
+    if(grid[p.pos.y][p.pos.x] == 's') {
+        p.playerStatus[p.getPid()] = DEAD;
+    }
 }
 
 /*
- * function_identifier: prints out weapon info in both curses and non-curses mode
- * parameters: map obj, player obj, direction (which key is pressed)
+ * function_identifier: initialize grid to blanks
+ * parameters: none
  * return value: none
  */
-void weapon_t::print() const {
+void map_t::initGrid() {
+    for (int i = 0; i < this->rows; i++) {
+        for (int j = 0; j < this->cols; j++) {
+            grid[i][j] = ' ';
+        }
+    }
+}
+
+void map_t::update() {
+    if(dXR == this->radius) {
+        for (int i = 0; i < this->rows; i++) {
+            grid[i][centerCoord.x + dXR] = 's';
+        }
+        // printw("REMOVE RIGHT");
+        // printw("remove right: %i", centerCoord.x + dXR);
+        dXR -= 1;
+    }
+    if (dXL == this->radius) {
+        for (int i = 0; i < this->rows; i++) {
+            grid[i][centerCoord.x - dXL] = 's';
+        }
+        // printw("remove left: %i", centerCoord.x - dXL);
+        // printw("REMOVE LEFT");
+        dXL -= 1;
+    }
+    if (dYU == this->radius) {
+        for (int i = 0; i < this->cols; i++) {
+            grid[centerCoord.y - dYU][i] = 's';
+        }
+        // printw("remove up: %i", centerCoord.y - dYU);
+        // printw("REMOVE UP");
+        // printw("center y: %i | distance y: %dYU\n");
+        dYU -= 1;
+    }
+    if (dYB == this->radius) {
+        for (int i = 0; i < this->cols; i++) {
+            grid[centerCoord.y + dYB][i] = 's';
+        }
+        // printw("remove down: %i", centerCoord.y + dYB);
+        // printw("REMOVE DOWN");
+        dYB -= 1;
+    }
+    // printw("changes");
+    this->radius -= 1;
+}
+
+/*
+ * function_identifier: print map for both ncurses and not ncurses
+ * parameters: none
+ * return value: none
+ */
+void map_t::print() const {
+    for (int i = 0; i < this->rows; i++) {
+        for (int j = 0; j < this->cols; j++) {
 #ifdef curses
-    printw("\nWeapon Information: \nmodel: %s\nmagcap: %i\nmagammo: %i\nreloading: %i\nammo: %i\ndmg: %i\n", model.c_str(), magcap, magammo, reloading, ammo, dmg);
+            printw("%c", grid[i][j]);
 #else
-    cout << "Weapon Information: " << endl << "model: " << model << endl <<
-    "magcap: " << magcap << endl << "magammo: " << magammo << endl <<
-    "reloading: " << reloading << endl << "ammo: " << ammo << endl << "dmg: " << dmg << endl;
+            cout << grid[i][j];
+#endif
+        }
+#ifdef curses
+        printw("\n");
+#else
+        cout << endl;
+#endif
+    }
+}
+
+/*
+ * function_identifier: update position of entity by setting old position to ' ', and the new position to 'A'
+ * parameters: none
+ * return value: none
+ */
+void map_t::updatePosition(ent_t myEnt) {
+    grid[myEnt.pos.getOldy()][myEnt.pos.getOldx()] = ' ';
+    grid[myEnt.pos.y][myEnt.pos.x] = 'A'; // supposing only entity whose position can be updated is the player until part II
+    myEnt.pos.setOldx(myEnt.pos.x);
+    myEnt.pos.setOldy(myEnt.pos.y);
+}
+
+/*
+ * function_identifier: erases printed array for both ncurses and not
+ * parameters: none
+ * return value: none
+ */
+void map_t::clearScreen() const {
+#ifdef curses
+    clear();
+    printw("Victor's Battle Royale!\n");
+#else
+    for (int i = 0; i < rows + 1; i++){
+        cout << "\33[2K\033[A\r";
+    }
+    cout << flush;
 #endif
 }
 
@@ -762,6 +768,8 @@ bool winRnd(player_t p, trigger_t t) {
     else return false;
 }
 
+
+
 /*
  * function_identifier: "client code" where objects are created and added to the game
  *                       there is also a section to test methods of all the classes
@@ -772,28 +780,30 @@ bool winRnd(player_t p, trigger_t t) {
 int main(int argc, char* argv[]) {
     initCurses();
     int round = 0;
-
+    
     if (argc != 3) {
         printw("ERROR: You must enter 2 arguments");
         endCurses();
         return -1;
     }
-
+    
     GRIDX = atoi(argv[1]);
     GRIDY = atoi(argv[2]);
     srand(time(NULL)); // creates random seed rand() function
-
+    
     map_t map(GRIDY, GRIDX);        // map automatically generates a random center within its constructor
     
     printw("Number of rows: %i\n", map.getRows());
     printw("Number of cols: %i\n", map.getCols());
-
+    
     // create objects
     player_t p[PLAYERCNT];                 // 25 player objects
     for (int i = 0; i < PLAYERCNT; i++) {
         p[i].pos.randomize();              // sets player to random position
         map.addPlayer(p[i].pos, i);        // adds player to map
         p[i].storeLocation();
+        //         map.updateStatus(p[i]);
+        // p[i].printStatus();
     }
     char input = ' ';
     printw("radius: %i\n", map.radius);
@@ -801,12 +811,17 @@ int main(int argc, char* argv[]) {
     
     while (input != 'q') {
         input = getch();
-        
         if (input == '\n') {
             map.update();
             printw("\n");
             map.clearScreen();
-            printw("CENTER: %i, %i | radius: %i | dABOVE: %i | dBELOW: %i | dLEFT: %i | dRIGHT: %i\n", map.centerCoord.x, map.centerCoord.y, map.radius,map.dYU, map.dYB, map.dXL, map.dXR);
+            for (int i = 0; i < PLAYERCNT; i++) {
+                map.updateStatus(p[i]);
+                p[i].printStatus();
+            }
+            
+            
+            
             map.print();
         } else {
             printw("Error! Only Press Enter.");
@@ -814,18 +829,13 @@ int main(int argc, char* argv[]) {
         round++;
     }
     
-
-    
-    
-
-    
     // ----------- DEMO of functions in other classes ---------------
     // show that print location works
-
+    
     // for (int i = 0; i< PLAYERCNT; i++) {
     //     p[i].printLocation();
     // }
-
+    
     endCurses();
     return 0;
 }
