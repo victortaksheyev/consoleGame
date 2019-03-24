@@ -403,9 +403,6 @@ int max2(int x, int y) {
     return largest;
 }
 
-
-
-
 /*
  * class_identifier: creates map and adds entities to it
  * constructors: map_t()
@@ -435,13 +432,11 @@ public:
     void update();          // updates the map with storm
     void calcRadius();      // calculates and returns radius
     int radius;
-       
     int dXR;    // x dist to the right of center
     int dXL;    // x dist to the left of center
     int dYU;    // y dist up of center
     int dYB;    // y dist down of center
     coord_t centerCoord;
-    // void updateStatus(player_t p);       // updates if player is dead or alive
     char **grid;
 private:
     int rows;
@@ -469,7 +464,7 @@ map_t::map_t(int urows, int ucols) {
 
     calcRadius();
     initGrid();
-    grid[centerCoord.y][centerCoord.x] = '!';
+    grid[centerCoord.y][centerCoord.x] = '+';
 }
 
 void map_t::calcRadius() {
@@ -498,7 +493,7 @@ void map_t::addTrigger(coord_t& c, char chr) {
 void map_t::initGrid() {
     for (int i = 0; i < this->rows; i++) {
         for (int j = 0; j < this->cols; j++) {
-            grid[i][j] = ' ';
+            grid[i][j] = '|';
         }
     }
 }
@@ -591,6 +586,11 @@ void map_t::clearScreen() const {
 #endif
 }
 
+int min2(int x, int y) {
+    int smallest = x;
+    if (y  < smallest) smallest = y;
+    return smallest;
+}
 
 class player_t : public ent_t, public health_t, public move {
 public:
@@ -608,10 +608,12 @@ public:
     void updateStatus(map_t);
     void printStatus() {printw("%i status: %i\n", pid, playerStatus[pid]);}
     void printLocation() const;
+    void chooseLastAlive();
 public:
     weapon_t wep;
+    static int lastAlive;                       // randomly chosen last char alive
     static bool playerStatus[PLAYERCNT];        // 1d array to store player if player is dead or alive
-    static int playerLocation[PLAYERCNT][5]; // array common to all players to store location
+    static double playerLocation[PLAYERCNT][6]; // array common to all players to store location
     // id, x, y, distXfromCenter, distYfromCenter
 private:
     string name;
@@ -621,9 +623,9 @@ private:
 
 int player_t::pCnt = 0;
 
-int player_t::playerLocation[PLAYERCNT][5] = {{0}};     //initialize 2d array to 0s
+double player_t::playerLocation[PLAYERCNT][6] = {{0}};     //initialize 2d array to 0s
 bool player_t::playerStatus[PLAYERCNT] = {ALIVE, ALIVE, ALIVE, ALIVE, ALIVE, ALIVE, ALIVE, ALIVE, ALIVE, ALIVE, ALIVE, ALIVE, ALIVE, ALIVE, ALIVE, ALIVE, ALIVE, ALIVE, ALIVE, ALIVE, ALIVE, ALIVE, ALIVE, ALIVE, ALIVE};           //initialize all players to be alive
-
+int player_t::lastAlive = 0;
 // defualt constructor setting pid and name
 player_t::player_t() {
     pid = pCnt++;
@@ -636,6 +638,17 @@ void player_t::updateStatus(map_t m) {
         this->playerStatus[this->pid] = DEAD;
 }
 
+void player_t::chooseLastAlive() {
+    bool selected = false;
+    int pid = 0; 
+    while (selected == false) {
+        int pid = (rand()%(PLAYERCNT+1));
+        if (this->playerStatus[pid] == ALIVE) {
+            lastAlive = pid;
+            return;
+        }
+    }
+}
 
 /*
  * function_identifier: stores player info into 2d array common to all players
@@ -646,8 +659,16 @@ void player_t::storeLocation(map_t m) {
     playerLocation[pid][0] = pid;           // storing the character
     playerLocation[pid][1] = pos.x;         // storing x   
     playerLocation[pid][2] = pos.y;         // storing y     
-    playerLocation[pid][3] = abs(m.centerCoord.x - pos.x);
-    playerLocation[pid][4] = abs(m.centerCoord.y - pos.y);        
+    playerLocation[pid][3] = abs(m.centerCoord.x - this->pos.x);    // storing min horizontal val
+    playerLocation[pid][4] = abs(m.centerCoord.y - this->pos.y);    // storing min vertical val
+    // calcs distance away from center
+    playerLocation[pid][5] = sqrt(pow((playerLocation[pid][3]), 2) + pow((playerLocation[pid][4]), 2));
+}
+
+void player_t::printLocation() const {
+    for (int i = 0; i < PLAYERCNT; i++) {
+        printw("location: %f\n", playerLocation[i][5]);
+    }
 }
 
 /*
@@ -698,8 +719,7 @@ void player_t::print() {
     cout << name << endl;           // prints player name + id
     entprint();                     // prints metadata
     cout << "Player position: "; pos.print(); // prints position
-#endif
-    
+#endif  
 }
 
 /*
@@ -758,6 +778,7 @@ void initCurses() {
 #endif
 }
 
+
 /*
  * function_identifier: checks when player steps on trigger
  * parameters: player obj, trigger obj
@@ -770,23 +791,62 @@ bool winRnd(player_t p, trigger_t t) {
     else return false;
 }
 
+double calcMinDist(player_t *p) {
+    double min = p[0].playerLocation[0][5];
+    for (int i = i; i < PLAYERCNT; i++) {
+       if (p[0].playerLocation[i][5] < min) {
+           min = p[0].playerLocation[i][5];
+       }
+    }
+    return min;
+}
+
 int numAlive(player_t *p) {
     int alive = 0;
     for (int i = 0; i < PLAYERCNT; i++) {
-        if (p[i].playerStatus[i] == ALIVE)
+        if (p[0].playerStatus[i] == ALIVE)
             alive++;
     }
     return alive;
 }
 
-// char winningChar() {
-//     char winner;
-//     // if the distance from the center of all the players alive is the same,
-//     // pick a random one to be the winner 
-//     // if ()
+int whoAlive(player_t *p) {
+    int pid;
+    for (int i = 0; i < PLAYERCNT; i++) {
+    if (p[0].playerStatus[i] == ALIVE)
+        pid = i;
+    }
+    return pid;
+}
 
-//     // return winner;
-// }
+bool sameDistance(player_t *p, double minDist) {
+    for (int i = 0; i < PLAYERCNT; i++) {
+        if (p[0].playerStatus[i] == ALIVE) {
+            if (p[0].playerLocation[i][5] != minDist) {
+                return false;
+            }
+        }
+    }
+    return true;
+}
+
+
+
+bool checkVictor(player_t *p, map_t m, int lastAlive) {
+    if (numAlive(p)==1) {
+        printw("Victory Royale!\n");
+        printw("Player '%c' wins!\n", whoAlive(p)+INT_TO_UPPER_ALPH);
+        printw("Game Over!\n");
+        return true;
+    } else if (numAlive(p) == 0) {
+        printw("Victory Royale!\n");
+        // printw("player '%c' nearly took the L, but won!\n", (pickRandom(p))+INT_TO_UPPER_ALPH);
+        printw("player '%c' nearly took the L, but won!\n", lastAlive+INT_TO_UPPER_ALPH);
+        printw("Game Over!\n");
+        return true;
+    }
+    return false;
+}
 
 /*
  * function_identifier: "client code" where objects are created and added to the game
@@ -818,39 +878,60 @@ int main(int argc, char* argv[]) {
         p[i].storeLocation(map);
     }
 
-    for (int i = 0; i < PLAYERCNT; i++) {
-        for (int j = 0; j < 5; j++) {
-            printw("%i ", p[0].playerLocation[i][j]);
-        }
-        printw("\n");
-    }
+    // printw("NUMBER OF ELEMENTS at min DIST: %i\n", numAtMin(p, minDist(p)));
+    p[0].printLocation();
+    printw("min dist: %f", calcMinDist(p));
 
     char input = ' ';
     printw("Center: (%i, %i)\n", map.centerCoord.x, map.centerCoord.y);
     printw("Victor's Battle Royale!\n");
     map.print();
     
+    
     while (input != 'q') {
         input = getch();
+        p[0].chooseLastAlive();
+        int lastAlive = p[0].lastAlive;
+        
         if (input == '\n' ) {
-            map.update();
+            
             map.clearScreen();
-            for (int i = 0; i < PLAYERCNT; i++)
-                p[i].updateStatus(map);
-            printw("Number alive: %i", numAlive(p));
+            printw("sdfasdfsa%d\n\n", sameDistance(p, calcMinDist(p)));
+            printw("Number alive: %i\n", numAlive(p));
+            printw("Radius: %i\n", map.radius);
             printw("Center: (%i, %i)\n", map.centerCoord.x, map.centerCoord.y);
             printw("Victor's Battle Royale!\n");
+            
+            map.update();
             map.print();
+
+            for (int i = 0; i < PLAYERCNT; i++)
+                p[i].updateStatus(map);
+
+            // map.print();
             printw("Round %i Complete. Press Enter to Continue\n", (round+1));
             round++;
+            
+
+        } else if (input == 'q'){
+            break;
         } else {
             printw("Error! Only Press Enter.\n");
+            break;
         }
-        // if (numAlive(p) <= 1 ) {
-        //     printw("Player '%c'");
-        // }
+            printw("LAST RANDOM ALIVE: %c\n\n\n", (p[0].lastAlive)+INT_TO_UPPER_ALPH);
+                    // checking for victory status
+            if (checkVictor(p, map, lastAlive)){
+                endCurses();
+                return 0;
+            };
         
     }
+
+    /* if there are 2 or more with the same x and y distance from the origin, 
+    * then when the storm approaches then (raidus is the same as distance from them)
+    * randomly decide on one
+    * */
     
     // ----------- DEMO of functions in other classes ---------------
     // show that print location works
