@@ -1,7 +1,18 @@
 /*
- * Description: Console game where character is allowed to move around using keyboard input and win by moving onto the '#'
- * Input: keyboard input (wasd for non-curses version, wasd or keyboard keys for curses version)
- * Output: Grid with player, obstacles, and goal that acts as game
+ * Description: Console game that simulates "the storm" that appears in battle royale games
+ * Input: keyboard input 
+ *          w - move up     a - move left
+ *          s - move down   d - move right
+ *          enter - advance f - use short range wep (which is #)
+ *          q - quit        u - shoot up with long range wep (which is !)
+ *          h - shoot left  j - shoot below
+ *          k - shoot right 
+ * Output: Grid with players, obstacles, weapons, and storm
+ *          Note -  In my version, the storm immediately destroyes obstacles and weapons (since they're much weaker)
+ *                  but gives all of the players 2 ticks before destroying htem
+ *                  Also, the short range weapon requires 2 shots to destory, 
+ *                  and long range requires 1 shot to destory
+ *                  There are 3 long range weapons and 5 short range weapons that spawn
  */
 
 #include <iostream>
@@ -23,13 +34,15 @@ const int X = 0;
 const int Y = 1;
 const int COORDINATE = 2;
 const int PLAYERCNT = 25;
+const int NUM_SHORT_WEPS = 5;
+const int NUM_LONG_WEPS = 3;
 const int INT_TO_UPPER_ALPH = 65;   // num to add to 0 to make it represent 'A'
 const bool ALIVE = true;
 const bool DEAD = false;
 const int ROUNDCOUNT = 100;
 
 // uncomment when obstacles are needed
-// const int NUM_OF_OBSTACLES = 20; // declaring number of obstacles
+const int NUM_OF_OBSTACLES = 20; // declaring number of obstacles
 
 /*
  * class_identifier: abstract class with virtual move functions and methods to set and get speed
@@ -91,6 +104,7 @@ public:
     coord_t(int usrx, int usry); // initializes x and oldx to usr x; same w/ y
     int getOldx() const {return oldx;}
     int getOldy() const {return oldy;}
+    void rando();
     void setOldx(int usrOldx) {oldx = usrOldx;}
     void setOldy(int usrOldy) {oldy = usrOldy;}
     void print() const;
@@ -117,7 +131,7 @@ coord_t::coord_t(int usrx, int usry) {
         oldy = usry;
     }
 }
-
+// prints coordinates
 void coord_t::print() const {
 #ifdef curses
     printw("[%i,%i]\n", x, y);
@@ -139,6 +153,14 @@ void coord_t::randomize() {
     y = rand() % GRIDY;
 }
 
+void coord_t::rando() {
+    oldx = x;
+    oldy = y;
+
+    x = rand() % GRIDX;
+    while (x <= GRIDX/2) x++; // ensures center is in the second half of grid
+    y = rand() % GRIDY;
+}
 /*
  * class_identifier: declares and manipulates status, id, creationtime of all entities
  *                   this class is inherited by others frequently
@@ -154,6 +176,7 @@ void coord_t::randomize() {
 
 class ent_t {
 public:
+    virtual char cprint();   // creating a virtual print function
     ent_t() {createEntity();}
     int getId() const {return id;}
     bool getStat() const {return status;}
@@ -162,14 +185,25 @@ public:
     void entprint() const;
     void printCreationTime() const;
     coord_t pos;
+    health_t hp;
+    char symbol;
 private:
     void createEntity();
+protected:
+    
 private:
     int id;
     time_t creationTime;
     bool status;
     static int entCnt;
+    
 };
+
+char ent_t::cprint() {
+    // printw("%c", '^');
+    return ' ';
+}
+
 
 /*
  * function_identifier: prints entity's infomation in both ncurses and not
@@ -233,9 +267,16 @@ public:
     string getId() const {return id;} // id getter
     void setType(string usrType) {id = usrType;} // id setter
     void printObstacle() const;
+    char cprint ();
+    health_t hp;
 private:
     string id;
 };
+
+char obstacle_t::cprint() {
+    // printw("%c", '@');      //  printing the obstacle
+    return '@';
+}
 
 /*
  * class_identifier: creates, sets, and gets variables used by weapon
@@ -275,6 +316,7 @@ public:
     void reloadClick() {reloading-=1;} // decreasing value of reloading by 1
     bool isReloading() const;
     void print() const;
+    char cprint();
 private:
     int magcap;     // how much ammo the magazine can hold
     int magammo;    // how much ammo is currently in active magazine
@@ -293,6 +335,7 @@ weapon_t::weapon_t() {
     dmg = 5;
     model = "";
 }
+
 
 // constructor with paramaters, setting member vars to usr values
 weapon_t::weapon_t(int usrCap, int usrMA, int usrA, int usrDMG, string usrModel) {
@@ -350,6 +393,11 @@ void weapon_t::print() const {
 #endif
 }
 
+char weapon_t::cprint() {
+    // printw("%c", '&');
+    return '&';
+}
+
 /*
  * function_identifier: print obstacle information
  * parameters: none
@@ -367,21 +415,37 @@ void obstacle_t::printObstacle() const {
 
 class trigger_t : public ent_t {
 public:
-    trigger_t();
+    trigger_t(char symbol = '#');
     trigger_t(string, char);
     string whatIDo() const {return info;}
     void setWhatIDo(string usrin) {info = usrin;} // info setter
     char getId() const {return id;}
     void setId(char usrid) {id = usrid;}          // id setter
+    char cprint();
+    void setSymbol(char symb);
 private:
     string info;
     char id;
+    char symbol;
 };
 
 // default constructor, initializing info and id
-trigger_t::trigger_t() {
-    info = "";
-    id = '?';
+// trigger_t::trigger_t() {
+//     info = "";
+//     id = '?';
+// }
+
+void trigger_t::setSymbol(char symb) {
+    this->symbol = symb;
+}
+
+trigger_t::trigger_t(char symbol){
+    this->symbol = symbol;
+}
+
+char trigger_t::cprint() {
+    // printw("%c", '#');
+    return symbol;
 }
 
 // constructor, initializing info and id to usr vars
@@ -403,6 +467,17 @@ int max2(int x, int y) {
     return largest;
 }
 
+class blank : public ent_t{
+    public:
+        char cprint() {
+            return '_';
+        }
+    private:
+};
+
+
+
+
 /*
  * class_identifier: creates map and adds entities to it
  * constructors: map_t()
@@ -416,21 +491,25 @@ int max2(int x, int y) {
  * static members: none
  */
 
-class map_t {
+class map_t : public ent_t {
 public:
     map_t(int urows = 50, int ucols = 14);
     void initGrid();  // iniitialize grid to blanks
     void print() const;
+    void dynamicPrint();
     void clearScreen() const;
     void addObstacle(coord_t&);
     void addPlayer(coord_t&, int);
+    void dynAddEnt(ent_t* e, coord_t&);
     void addTrigger(coord_t& c, char ch);
-    void updatePosition(ent_t);
+    void updatePosition(ent_t, ent_t*);
     // for testing purposes
     int getRows() const {return rows;}
     int getCols() const {return cols;}
-    void update();          // updates the map with storm
+    friend void update(map_t &m,ent_t*e, ent_t*p, int& pU, int& pR, int& pD, int& pL);          // updates the map with storm
+    // friend void secondUpdate(map_t &m, ent_t*e, ent_t*p);
     void calcRadius();      // calculates and returns radius
+    // ~map_t();               // adding a destructor to deallocate the new grid at end of program
     int radius;
     int dXR;    // x dist to the right of center
     int dXL;    // x dist to the left of center
@@ -438,16 +517,43 @@ public:
     int dYB;    // y dist down of center
     coord_t centerCoord;
     char **grid;
-private:
+    char cprint();
+// private:
+    ent_t*** egrid;    // creating the new grid(a 2-d array of ent_t pointers)
     int rows;
     int cols;
 };
 
+char map_t::cprint() {
+    symbol = 's';
+    return 's';
+}
+
+void map_t::dynAddEnt(ent_t* e, coord_t& c){
+    egrid[c.y][c.x] = e;                        // storing the entity in the array
+}
+
+void map_t::dynamicPrint() {
+    for (int i = 0; i < GRIDY; i++) {
+        for (int j = 0; j < GRIDX; j++) {
+            if (egrid[i][j] != nullptr) 
+                printw("%c", egrid[i][j]->cprint());
+            else 
+                printw("%c", ' ');
+        }
+        printw("\n");
+    }
+}
+
 // defualt paramater, intiializing the grid
-// othe
 map_t::map_t(int urows, int ucols) {
     this->rows = urows;
     this->cols = ucols;
+
+    // dynamically allocating 2d array of ent_t pointers
+    egrid = new ent_t**[this->rows];
+    for (int i = 0; i < urows; i++)
+        egrid[i] = new ent_t*[this->cols];
 
     // creating 2d pointer array
     grid = new char*[this->rows];  // creates array of pointers
@@ -455,7 +561,7 @@ map_t::map_t(int urows, int ucols) {
         grid[i] = new char[this->cols];
     }
 
-    centerCoord.randomize();       // creates a random center
+    centerCoord.rando();       // creates a random center
 
     dXR = GRIDX - centerCoord.x;
     dXL = centerCoord.x;
@@ -466,6 +572,16 @@ map_t::map_t(int urows, int ucols) {
     initGrid();
     // grid[centerCoord.y][centerCoord.x] = ' ';    // print out location
 }
+
+// map_t::~map_t() {
+//     for (int i = 0; i < rows; i++) {
+//         for (int j = 0; j < cols; j++) {
+//             delete newgrid[i][j];
+//         }
+//         delete [] newgrid[i];               // deallocating data in each row
+//     }
+//     delete [] newgrid;                      // deallocating the final 1d array of pointers
+// }
 
 void map_t::calcRadius() {
     this->radius = max(dXR, dXL, dYU, dYB);
@@ -489,80 +605,30 @@ void map_t::addTrigger(coord_t& c, char chr) {
 void map_t::initGrid() {
     for (int i = 0; i < this->rows; i++) {
         for (int j = 0; j < this->cols; j++) {
-            grid[i][j] = ' ';
+            egrid[i][j] = nullptr;
         }
     }
 }
 
-// advances the storm position on the map
-void map_t::update() {
-    if(dXR == this->radius) {
-        for (int i = 0; i < this->rows; i++) {
-            grid[i][centerCoord.x + dXR] = 's';
-        }
-        // printw("REMOVE RIGHT");
-        // printw("remove right: %i", centerCoord.x + dXR);
-        dXR -= 1;
-    }
-    if (dXL == this->radius) {
-        for (int i = 0; i < this->rows; i++) {
-            grid[i][centerCoord.x - dXL] = 's';
-        }
-        // printw("remove left: %i", centerCoord.x - dXL);
-        // printw("REMOVE LEFT");
-        dXL -= 1;
-    }
-    if (dYU == this->radius) {
-        for (int i = 0; i < this->cols; i++) {
-            grid[centerCoord.y - dYU][i] = 's';
-        }
-        // printw("remove up: %i", centerCoord.y - dYU);
-        // printw("REMOVE UP");
-        // printw("center y: %i | distance y: %dYU\n");
-        dYU -= 1;
-    }
-    if (dYB == this->radius) {
-        for (int i = 0; i < this->cols; i++) {
-            grid[centerCoord.y + dYB][i] = 's';
-        }
-        // printw("remove down: %i", centerCoord.y + dYB);
-        // printw("REMOVE DOWN");
-        dYB -= 1;
-    }
-    // printw("changes");
-    this->radius -= 1;
-}
 
-/*
- * function_identifier: print map for both ncurses and not ncurses
- * parameters: none
- * return value: none
- */
-void map_t::print() const {
-    for (int i = 0; i < this->rows; i++) {
-        for (int j = 0; j < this->cols; j++) {
-#ifdef curses
-            printw("%c", grid[i][j]);
-#else
-            cout << grid[i][j];
-#endif
-        }
-#ifdef curses
-        printw("\n");
-#else
-        cout << endl;
-#endif
-    }
-}
+
+
+
+
 
 /*
  * function_identifier: update position of entity by setting old position to ' ', and the new position to 'A'
  * parameters: none
  * return value: none
  */
-void map_t::updatePosition(ent_t myEnt) {
-    grid[myEnt.pos.getOldy()][myEnt.pos.getOldx()] = ' ';
-    grid[myEnt.pos.y][myEnt.pos.x] = 'A'; // supposing only entity whose position can be updated is the player until part II
+void map_t::updatePosition(ent_t myEnt, ent_t* blank) {
+    // grid[myEnt.pos.getOldy()][myEnt.pos.getOldx()] = ' ';
+    // cout << "old x" << myEnt.pos.getOldx() <<"old y" << myEnt.pos.getOldy() ;
+    
+    egrid[myEnt.pos.getOldy()][myEnt.pos.getOldx()] = blank;    // make it point to the blank
+    // printw("%c", egrid[myEnt.pos.getOldy()][myEnt.pos.getOldx()]->cprint());
+    // grid[myEnt.pos.y][myEnt.pos.x] = 'A'; // supposing only entity whose position can be updated is the player until part II
+    egrid[myEnt.pos.y][myEnt.pos.x] = &myEnt;
     myEnt.pos.setOldx(myEnt.pos.x);
     myEnt.pos.setOldy(myEnt.pos.y);
 }
@@ -582,6 +648,8 @@ void map_t::clearScreen() const {
     cout << flush;
 #endif
 }
+
+
 
 /*
  * class_identifier: creates, changes, and stores player info
@@ -604,10 +672,11 @@ void map_t::clearScreen() const {
  *                      playerLocation[PLAYERCNT][3]
  */
 
-class player_t : public ent_t, public health_t, public move {
+class player_t : public ent_t, public move {
 public:
     player_t();
     void print();
+    char cprint();
     void setPid(int usrPid) {pid = usrPid;}
     void setPname(string usrPname) {name = usrPname;}
     int getPid() const {return pid;}
@@ -620,13 +689,16 @@ public:
     void updateStatus(map_t);
     void printStatus() {printw("%i status: %i\n", pid, playerStatus[pid]);}
     void chooseLastAlive();
+    void removePlayer();
 public:
     weapon_t wep;
     static int lastAlive;                       // randomly chosen last char alive
     static bool playerStatus[PLAYERCNT];        // 1d array to store player if player is dead or alive
     static double playerLocation[PLAYERCNT][3]; // array common to all players to store location
                                                 // stores: id, x, y
+    health_t hp;
 private:
+    
     string name;
     int pid;
     static int pCnt;
@@ -649,10 +721,15 @@ player_t::player_t() {
 
 // if player is inside of storm, their status changes to DEAD
 void player_t::updateStatus(map_t m) {
-    if (m.grid[pos.y][pos.x] == 's') 
-        this->playerStatus[this->pid] = DEAD;
+    if (m.egrid[pos.y][pos.x]->symbol == 's') {         // checks if its in the storm
+        this->playerStatus[this->pid] = DEAD;           // sets it to DEAD in that case
+        
+    }       
 }
 
+void player_t::removePlayer( ){
+    this->playerStatus[this->pid] = DEAD;
+}
 // randomly selects a player that is alive
 // this function is called when choosing a winner in case of draw
 void player_t::chooseLastAlive() {
@@ -693,13 +770,13 @@ void player_t::moveUp() {
 void player_t::moveDown() {
     pos.setOldx(pos.x);
     pos.setOldy(pos.y);
-    if (pos.y < 13) pos.y += 1;
+    if (pos.y < GRIDY-1) pos.y += 1;
 }
 
 void player_t::moveRight() {
     pos.setOldx(pos.x);
     pos.setOldy(pos.y);
-    if (pos.x < 49) pos.x += 1;
+    if (pos.x < GRIDX-1) pos.x += 1;
 }
 
 void player_t::moveLeft() {
@@ -729,39 +806,361 @@ void player_t::print() {
 #endif  
 }
 
+char player_t::cprint() {
+    return (char)(pid+INT_TO_UPPER_ALPH);     // PID casted into a character
+}
+
+class empty_t: public ent_t {
+    public: 
+        char cprint() {return ' ';}
+};
+
+empty_t e;
+
+void updatePos(map_t &map, player_t &p){
+    map.egrid[p.pos.getOldy()][p.pos.getOldx()] = &e;
+    map.egrid[p.pos.y][p.pos.x] = &p;
+    p.pos.setOldx(p.pos.x);
+    p.pos.setOldy(p.pos.y);
+}
+
 /*
  * function_identifier: moves player on map, depending on key user has pressed
- * parameters: map obj, player obj, direction (which key is pressed)
+ * parameters: map_t &map, player_t &p, obstacle_t*o, trigger_t *shortWep, trigger_t* longWep, int direction, bool& haveShort, bool& haveLong
  * return value: none
  */
-void makemove(map_t &map, player_t &p, int direction) {
+void makemove(map_t &map, player_t &p, obstacle_t*o, trigger_t *shortWep, trigger_t* longWep, int direction, bool& haveShort, bool& haveLong) {
 #ifdef curses
-    if (direction == KEY_UP || direction == 119) {      // checking up or W
-        p.moveUp();                                     // change player's position
-        map.updatePosition(p);                          // and immediately after, update map with that new position
-    } else if (direction == KEY_DOWN || direction == 115) {
-        p.moveDown();
-        map.updatePosition(p);
-    } else if (direction == KEY_RIGHT || direction == 100) {
-        p.moveRight();
-        map.updatePosition(p);
-    } else if (direction == KEY_LEFT || direction == 97) {
-        p.moveLeft();
-        map.updatePosition(p);
+    bool obstacle = false;
+    bool player = false;
+    
+    if (direction == 119) {                                             // checking W
+        if (p.pos.y <= 0) {                                             // prevent going out of bounds
+            return;
+        }
+        for (int i = 0; i < NUM_OF_OBSTACLES; i++){                     // looking at obstacles around
+            if (map.egrid[p.pos.y - 1][p.pos.x] == (o+i)) {
+                obstacle = true;
+            }
+        }
+        for (int i = 0; i< PLAYERCNT; i++) {                            // looking around for players
+            if (map.egrid[p.pos.y - 1][p.pos.x] == (&p+i)) {
+                player = true;
+            }
+        }
+
+        if (!obstacle && !player) {                                    // if no player or obstacle
+            for (int i = 0; i < NUM_SHORT_WEPS; i++) {                 // check if the next move is a short weapon
+                if (map.egrid[p.pos.y - 1][p.pos.x] == (shortWep+i)){
+                    haveShort = true;                                   // make it known that player has short wep
+                    break;
+                }
+            }
+            for (int i = 0; i < NUM_LONG_WEPS; i++) {                   // check if next move picks up long weapon
+                if (map.egrid[p.pos.y - 1][p.pos.x] == (longWep+i)){
+                    haveLong = true;                                    // make it known player has long wep
+                    break;
+                }
+            }
+            p.moveUp();                                                 // move player
+            updatePos(map, p);                                          // update player's position
+        }
+    } else if (direction == 115) {                                      // Checking S
+        if (p.pos.y >= GRIDY-1) {                                       // prevent going out of bounds
+            return;
+        }
+        for (int i = 0; i < NUM_OF_OBSTACLES; i++){
+            if (map.egrid[p.pos.y + 1][p.pos.x] == (o+i)) {
+                obstacle = true;
+            }
+        }
+        
+         for (int i = 0; i< PLAYERCNT; i++) {
+            if (map.egrid[p.pos.y + 1][p.pos.x] == (&p+i)) {
+                player = true;
+            }
+        }
+        if (!obstacle && !player) {
+            for (int i = 0; i < NUM_SHORT_WEPS; i++) {
+                if (map.egrid[p.pos.y + 1][p.pos.x] == (shortWep+i)){
+                    haveShort = true;
+                    break;
+                }
+            }
+            for (int i = 0; i < NUM_LONG_WEPS; i++) {
+                if (map.egrid[p.pos.y + 1][p.pos.x] == (longWep+i)){
+                    haveLong = true;
+                    break;
+                }
+            }
+            p.moveDown();
+            updatePos(map, p);
+        }
+    } else if (direction == 100) {                                  // checking D
+        for (int i = 0; i < NUM_OF_OBSTACLES; i++){
+            if (map.egrid[p.pos.y][p.pos.x+1] == (o+i)) {
+                obstacle = true;
+            }
+        }
+        for (int i = 0; i< PLAYERCNT; i++) {
+            if (map.egrid[p.pos.y][p.pos.x+1] == (&p+i)) {
+                player = true;
+            }
+        }
+        if (!obstacle && !player) {
+            for (int i = 0; i < NUM_SHORT_WEPS; i++) {
+                if (map.egrid[p.pos.y][p.pos.x+1] == (shortWep+i)){
+                    haveShort = true;
+                    break;
+                }
+            }
+            for (int i = 0; i < NUM_LONG_WEPS; i++) {
+                if (map.egrid[p.pos.y][p.pos.x+1] == (longWep+i)){
+                    haveLong = true;
+                    break;
+                }
+            }
+            p.moveRight();
+            updatePos(map, p);
+        }
+    } else if (direction == 97) {                                       // checking A
+        for (int i = 0; i < NUM_OF_OBSTACLES; i++){
+            if (map.egrid[p.pos.y][p.pos.x - 1] == (o+i)) {
+                obstacle = true;
+            }
+        }
+        for (int i = 0; i< PLAYERCNT; i++) {
+            if (map.egrid[p.pos.y][p.pos.x - 1] == (&p+i)) {
+                player = true;
+            }
+        }
+        if (!obstacle && !player){
+            for (int i = 0; i < NUM_SHORT_WEPS; i++) {
+                if (map.egrid[p.pos.y][p.pos.x-1] == (shortWep+i)){
+                    haveShort = true;
+                    break;
+                }
+            }
+            for (int i = 0; i < NUM_LONG_WEPS; i++) {
+                if (map.egrid[p.pos.y][p.pos.x-1] == (longWep+i)){
+                    haveLong = true;
+                    break;
+                }
+            }
+            p.moveLeft();
+            updatePos(map, p);
+        }
+    } else if (direction == 102 && haveShort) {
+        for (int i = 0; i < NUM_OF_OBSTACLES; i++){
+            // if the obstacle is above, below, left, or right of us
+            
+            if (map.egrid[p.pos.y-1][p.pos.x] == (o+i)){            // OBS is ABOVE US
+                if ((o+i)->hp.gethp()>0){
+                    (o+i)->hp.sethp((o+i)->hp.gethp() - 20);        // decrease the hp by 10 of that obstacle
+                    break;
+                } else {
+                    map.egrid[p.pos.y-1][p.pos.x] = nullptr;        // make it not point to anything(delete the obstacle)
+                    break;
+                } 
+            }   
+            else if (map.egrid[p.pos.y+1][p.pos.x] == (o+i)) {      // OBS is BELOW US
+                if ((o+i)->hp.gethp()>0){
+                    (o+i)->hp.sethp((o+i)->hp.gethp() - 20);        // decrease the hp by 10 of that obstacle
+                    break;
+                } else {
+                    map.egrid[p.pos.y+1][p.pos.x] = nullptr;        // make it not point to anything(delete the obstacle)
+                    break;
+                } 
+            }
+            else if (map.egrid[p.pos.y][p.pos.x - 1] == (o+i)) {    // OBS is LEFT of US
+                if ((o+i)->hp.gethp()>0){
+                    (o+i)->hp.sethp((o+i)->hp.gethp() - 20);        // decrease the hp by 10 of that obstacle
+                    break;
+                } else {
+                    map.egrid[p.pos.y][p.pos.x - 1] = nullptr;        // make it not point to anything(delete the obstacle)
+                    break;
+                } 
+            } 
+            else if (map.egrid[p.pos.y][p.pos.x + 1] == (o+i)) {
+                if ((o+i)->hp.gethp()>0){
+                    (o+i)->hp.sethp((o+i)->hp.gethp() - 20);        // decrease the hp by 10 of that obstacle
+                    break;
+                } else {
+                    map.egrid[p.pos.y][p.pos.x + 1] = nullptr;        // make it not point to anything(delete the obstacle)
+                    break;
+                } 
+            } 
+            
+            else {
+                continue;
+            }
+        }
+
+        // ------------------------------- PLAYERS -------------------------------
+        for (int i = 0; i < PLAYERCNT; i++){
+            // if the obstacle is above, below, left, or right of us
+            if (map.egrid[p.pos.y-1][p.pos.x] == (&p+i)){            // PLAYER is ABOVE US
+                if ((&p+i)->hp.gethp()>0){
+                    (&p+i)->hp.sethp((&p+i)->hp.gethp() - 20);        // decrease the hp by 10 of that obstacle
+                    break;
+                } else {
+                    (&p+i)->removePlayer();
+                    map.egrid[p.pos.y-1][p.pos.x] = &e;        // make it not point to anything(delete the obstacle)
+                    
+                    break;
+                } 
+            }   
+            else if (map.egrid[p.pos.y+1][p.pos.x] == (&p+i)) {      // PLAYER is BELOW US
+                if ((&p+i)->hp.gethp()>0){
+                    (&p+i)->hp.sethp((&p+i)->hp.gethp() - 20);        // decrease the hp by 10 of that obstacle
+                    break;
+                } else {
+                    (&p+i)->removePlayer();
+                    map.egrid[p.pos.y+1][p.pos.x] = &e;        // make it not point to anything(delete the obstacle)
+                         // make it not point to anything(delete the obstacle)
+                    
+                    break;
+                } 
+            }
+            else if (map.egrid[p.pos.y][p.pos.x - 1] == (&p+i)) {    // PLAYER is LEFT of US
+                if ((&p+i)->hp.gethp()>0){
+                    (&p+i)->hp.sethp((&p+i)->hp.gethp() - 20);        // decrease the hp by 10 of that obstacle
+                    break;
+                } else {
+                    (&p+i)->removePlayer();
+                    map.egrid[p.pos.y][p.pos.x - 1] = &e;        // make it not point to anything(delete the obstacle)
+                    
+                    break;
+                } 
+            } 
+            else if (map.egrid[p.pos.y][p.pos.x + 1] == (&p+i)) {
+                if ((&p+i)->hp.gethp()>0){
+                    (&p+i)->hp.sethp((&p+i)->hp.gethp() - 20);        // decrease the hp by 10 of that obstacle
+                    
+                    break;
+                } else {
+                    (&p+i)->removePlayer();
+                    map.egrid[p.pos.y][p.pos.x + 1] = &e;        // make it not point to anything(delete the obstacle)
+                    
+                    break;
+                } 
+            } else {
+                continue;
+            }
+        }
     }
-#else
-    if (direction == 'w') {
-        p.moveUp();
-        map.updatePosition(p);
-    } else if (direction == 's') {
-        p.moveDown();
-        map.updatePosition(p);
-    } else if (direction == 'd') {
-        p.moveRight();
-        map.updatePosition(p);
-    } else if (direction == 'a') {
-        p.moveLeft();
-        map.updatePosition(p);
+    else if (direction == 117 && haveLong) {             // checking that player has a long range weapon
+        bool foundObs = false;
+        bool foundPlayer = false;
+        for (int i = p.pos.y; i >= 1; i--) {                // CHECKING OBSTACLE ABOVE
+            for (int j = 0; j < NUM_OF_OBSTACLES; j++){
+                if (map.egrid[i][p.pos.x] == (o+j)) {        // if there is an obstacle ANYWHERE above the player
+                    map.egrid[i][p.pos.x] = &e;
+                    foundObs = true;
+                    break;
+                }   
+                if (i==1 && map.egrid[i-1][p.pos.x] == (o+j)){
+                    map.egrid[i-1][p.pos.x] = &e;
+                    foundObs = true;
+                    break;
+                }
+                if (foundObs) break;                               // break out of double for loop
+            }
+            if (foundObs) break;  
+            for (int j = 0; j < PLAYERCNT; j++){
+                if (map.egrid[i-1][p.pos.x] == (&p+j)) {        // if there is an player ANYWHERE above the player
+                    (&p+j)->removePlayer();
+                    map.egrid[i-1][p.pos.x] = &e;
+                    foundPlayer = true;
+                    break;
+                }   
+                if (foundPlayer) break;                               // break out of double for loop
+            }
+            if (foundPlayer) break;   
+        }
+    } else if (direction == 106 && haveLong) {                // BELOW
+        bool foundObs = false;
+        bool foundPlayer = false;
+
+         for (int i = p.pos.y; i <= (GRIDY-2); i++) {             // CHECKING OBSTACLE
+            for (int j = 0; j < NUM_OF_OBSTACLES; j++){
+                if (map.egrid[i][p.pos.x] == (o+j)) {        // if there is an obstacle ANYWHERE above the player
+                    map.egrid[i][p.pos.x] = &e;
+                    foundObs = true;
+                    break;
+                }
+                if (i==(GRIDY-1) && map.egrid[i+1][p.pos.x] == (o+j)){
+                    map.egrid[i+1][p.pos.x] = &e;
+                    foundObs = true;
+                    break;
+                }   
+                if (foundObs) break;                            // break out of double for loop
+            }
+            if (foundObs) break;
+             for (int j = 0; j < PLAYERCNT; j++){
+                if (map.egrid[i+1][p.pos.x] == (&p+j)) {        // if there is an player ANYWHERE above the player
+                    (&p+j)->removePlayer();
+                    map.egrid[i+1][p.pos.x] = &e;
+                    foundPlayer = true;
+                    break;
+                }   
+                if (foundPlayer) break;                               // break out of double for loop
+            }
+            if (foundPlayer) break;
+        }
+    } else if (direction == 107 && haveLong ) {                           // right
+        bool foundObs = false;
+        bool foundPlayer = false;
+        
+        for (int i = p.pos.x; i <= GRIDX; i++) {             // CHECKING OBSTACLE
+            for (int j = 0; j < NUM_OF_OBSTACLES; j++){
+                if (map.egrid[p.pos.y][i] == (o+j)) {        // if there is an obstacle ANYWHERE above the player
+                    map.egrid[p.pos.y][i] = &e;
+                    foundObs = true;
+                    break;
+                }                                  // break out of double for loop
+                if (foundObs) break;
+            }
+            if (foundObs) break;
+            for (int k = 0; k < PLAYERCNT; k++) {
+                if (map.egrid[p.pos.y][i+1] == (&p+k)) {
+                        (&p+k)->removePlayer();
+                        map.egrid[p.pos.y][i+1] = &e;
+                        foundPlayer = true;
+                        break;
+                }
+                if (foundPlayer) break;
+            }
+
+            if (foundPlayer) break;
+           
+        }
+        
+    } else if (direction == 104 && haveLong) {                              // left
+        bool foundObs = false;
+        bool foundPlayer = false;
+        for (int i = p.pos.x; i >= 0; i--) {                    // CHECKING OBSTACLE
+            for (int j = 0; j < NUM_OF_OBSTACLES; j++){
+                if (map.egrid[p.pos.y][i] == (o+j)) {           // if there is an obstacle ANYWHERE above the player
+                    map.egrid[p.pos.y][i] = &e;
+                    foundObs = true;
+                    break;
+                }   
+                if (foundObs) break;                               // break out of double for loop
+            }
+            if (foundObs) break;
+            for (int j = 0; j < PLAYERCNT; j++){
+                if (map.egrid[p.pos.y][i-1] == (&p+j)) {        // if there is an player ANYWHERE above the player
+                    (&p+j)->removePlayer();
+                    map.egrid[p.pos.y][i-1] = &e;
+                    foundPlayer = true;
+                    break;
+                }   
+                if (foundPlayer) break;                               // break out of double for loop
+            }
+            if (foundPlayer) break;  
+        }
+        
     }
 #endif
 }
@@ -848,6 +1247,85 @@ bool checkVictor(player_t *p, map_t m, int lastAlive) {
     return false;
 }
 
+// returns whether or not the current cell contains a player
+// used for determining what the storm destroys
+bool isPlayer(ent_t*** egrid, player_t*p, int x, int y){
+    for (int i = 0; i < PLAYERCNT; i++){
+        if (egrid[y][x] == (p+i)) return true;
+    }
+    return false;
+}
+
+/*
+ * function_identifier: advances the storm posiiton on the map
+ * parameters: map_t &m, ent_t*e, player_t*p, int& pU, int& pR, int& pD, int& pL
+ * return value: none
+ */
+void update(map_t &m, ent_t*e, player_t*p, int& pU, int& pR, int& pD, int& pL) {
+    int performedUp = 0; int performedDown = 0; int performedRight = 0; int performedLeft = 0;
+    
+    if(m.dXR == m.radius) {                                     // remove right
+        pR++;
+        for (int i = 0; i < m.rows; i++) {
+            if (pR > 2) {
+                m.egrid[i][m.centerCoord.x + m.dXR+2] = e;              // perform the second round of the storm, to damage the chars that weren't initially
+            }
+            if (isPlayer(m.egrid, p,  m.centerCoord.x + m.dXR, i)) {   // if there is a player
+                    continue;                                           
+            } else {
+                m.egrid[i][m.centerCoord.x + m.dXR] = e;               // destroy it
+            } 
+        }
+        m.dXR -= 1;
+    }
+    if (m.dXL == m.radius) {                                    // remove left
+        pL++;
+        for (int i = 0; i < m.rows; i++) {
+            if (pL>2) {
+                m.egrid[i][m.centerCoord.x - (2+m.dXL)] = e;  
+            }
+            if (isPlayer(m.egrid, p,  m.centerCoord.x - m.dXL, i)) {
+                continue;
+            }
+            else {
+             m.egrid[i][m.centerCoord.x - m.dXL] = e;
+            }
+        }
+        m.dXL -= 1;
+    }
+    if (m.dYU == m.radius) {                                    // remove up
+        pU++;
+        for (int i = 0; i < m.cols; i++) {
+            if (pU>2) {
+                   m.egrid[m.centerCoord.y - (m.dYU+2)][i] = e;  
+            }
+            if (isPlayer(m.egrid, p,  i, m.centerCoord.y - m.dYU)){
+                continue;
+            } else {
+                m.egrid[m.centerCoord.y - m.dYU][i] = e;
+         
+            }
+        }
+        m.dYU -= 1;
+    }
+    if (m.dYB == m.radius) {                                    // remove down
+    pD++;
+        for (int i = 0; i < m.cols; i++) {
+            if (pD>2) {
+                m.egrid[2+ m.centerCoord.y + m.dYB][i] = e;  
+            }
+            if (isPlayer(m.egrid, p,  i, m.centerCoord.y + m.dYB)) {
+                continue;
+            } else {
+                m.egrid[m.centerCoord.y + m.dYB][i] = e;
+         
+            }
+        }
+        m.dYB -= 1;
+    }
+    m.radius -= 1;
+}
+
 /*
  * function_identifier: "client code" where objects are created and added to the game
  *                       there is also a section to test methods of all the classes
@@ -859,6 +1337,9 @@ int main(int argc, char* argv[]) {
     // pre-game initialization ---------------------------------------------
     initCurses();
     int round = 0;
+    bool haveShortWep = false;              // don't have short
+    bool haveLongWep = false;               // or long weapon initially
+    int pU = 0; int pL = 0; int pR = 0; int pD = 0;
 
     // changes size of map to custom value
     if (argc == 3) {
@@ -870,44 +1351,74 @@ int main(int argc, char* argv[]) {
 
     map_t map(GRIDY, GRIDX);                // generating map and random center coord
     player_t p[PLAYERCNT];                  // 25 player objects
+    obstacle_t o[NUM_OF_OBSTACLES];
+    trigger_t shortWep[NUM_SHORT_WEPS];
+    trigger_t longWep[NUM_LONG_WEPS];
+    for (int i = 0; i < NUM_LONG_WEPS; i++)
+        longWep[i].setSymbol('!');          // setting the long rage weapon symbol
 
+    for (int i = 0; i < NUM_OF_OBSTACLES; i++) {
+        o[i].pos.randomize();               // randomize the obstacles
+        map.dynAddEnt(&(o[i]), o[i].pos);   // add them to the map
+    }
     // initializing game arrays---------------------------------------------
     for (int i = 0; i < PLAYERCNT; i++) {
         p[i].pos.randomize();               // sets player to random position
-        map.addPlayer(p[i].pos, i);         // adds player to map
-        p[i].storeLocation(map);
+        map.dynAddEnt(&(p[i]), p[i].pos);
+    }
+    for (int i = 0; i<NUM_SHORT_WEPS; i++){
+        shortWep[i].pos.randomize();
+        map.dynAddEnt(&(shortWep[i]), shortWep[i].pos);
+    }
+    for (int i = 0; i<NUM_LONG_WEPS; i++){
+        longWep[i].pos.randomize();
+        map.dynAddEnt(&(longWep[i]), longWep[i].pos);
     }
     
     // main game loop start ------------------------------------------------
     char input = ' ';
+
+    // //printing game info
     printw("Center: (%i, %i)\n", map.centerCoord.x, map.centerCoord.y);
     printw("Victor's Battle Royale!\n");
-    map.print();
+    printw("Use wasd to move, q to quit - # is the short range weapon ! is the long range\n");
+    map.dynamicPrint();
     
+    // main game loop, terminated by press of 'q'
     while (input != 'q') {
         input = getch();
         p[0].chooseLastAlive();
         int lastAlive = p[0].lastAlive;
         // only move if player is alive
         if (p[0].playerStatus[0] == ALIVE) {
-            makemove(map, p[0], input);     // updates map and player obj based on usr input
+            makemove(map, p[0], o, shortWep, longWep, input, haveShortWep, haveLongWep);     // updates map and player obj based on usr input
         }
+
         if (input == '\n') {
             map.clearScreen();
             printw("Center: (%i, %i)\n", map.centerCoord.x, map.centerCoord.y);
             printw("Victor's Battle Royale!\n");
+            printw("Use wasd to move, q to quit - # is the short range weapon ! is the long range\n");
             
-            map.update();
-            map.print();
-            for (int i = 0; i < PLAYERCNT; i++)
+            update(map, &map, p, pU, pR, pD, pL);
+            
+            map.dynamicPrint();
+            
+            // updates status of all players (either dead or alive) after the map gets updated with new storm iteration
+            for (int i = 0; i < PLAYERCNT; i++){
                 p[i].updateStatus(map);
-
+                // printw("%i ", p[0].playerStatus[i]);
+            }
             printw("Round %i Complete. Press Enter to Continue\n", (round+1));
+            // only increments round if user presses enter
             round++;
-
+        // ensures immediate termination rather than waiting for loop to end
         } else if (input == 'q'){
             break;
-        } else if (input != 'w' && input != 'd' && input != 'a' && input != 's' ){
+        // user input validation
+        } else if ( input != 'w' && input != 'd' && input != 'a' && 
+                    input != 's' && input != 'f' && input != 'u' &&
+                    input != 'k' && input != 'j' && input != 'h'){
             printw("Error! Only Press Enter.\n");
             break;
         }
@@ -915,11 +1426,11 @@ int main(int argc, char* argv[]) {
         if (checkVictor(p, map, lastAlive)){
             endCurses();
             return 0;
-        };
-        
-    }
+        };  
+    } 
     // end main game loop ----------------------------------------------------
 
     endCurses();
     return 0;
 }
+
